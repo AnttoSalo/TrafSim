@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TrafSim</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>TrafSim</h1>
+    <div class="controls">
+      <button id="playToggle">▶</button>
+      <button id="addIntersection">Lisää risteys</button>
+      <button id="addRoad">Yhdistä tiet</button>
+      <button id="spawnCars">Luo 500 autoa</button>
+      <button id="resetMap">Tyhjennä kartta</button>
+      <button id="sampleMap">Esimerkkikartta</button>
+    </div>
+    <div class="sliders">
+      <label>Reaktioaika <input type="range" id="reaction" min="0.3" max="1.2" step="0.1" value="0.6" /> <span id="reactionValue">0.6 s</span></label>
+      <label>Kiihdytys <input type="range" id="accel" min="0.5" max="4" step="0.1" value="2.5" /> <span id="accelValue">2.5 m/s²</span></label>
+      <label>Jarrutus <input type="range" id="decel" min="1" max="6" step="0.1" value="4" /> <span id="decelValue">4 m/s²</span></label>
+      <label>Huippunopeus <input type="range" id="speed" min="8" max="28" step="1" value="18" /> <span id="speedValue">18 m/s</span></label>
+    </div>
+    <p class="hint">Vinkki: karttaeditorissa klikkaa lisätäksesi risteyksen. "Yhdistä tiet" -tilassa valitse kaksi risteystä peräkkäin luodaksesi kaksisuuntaisen tien.</p>
+  </header>
+  <main>
+    <canvas id="scene" width="1200" height="720"></canvas>
+    <aside>
+      <h2>Simulaattorin tila</h2>
+      <p><strong>Ajoneuvoja:</strong> <span id="vehicleCount">0</span></p>
+      <p><strong>Tilanne:</strong> <span id="status">Pysäytetty</span></p>
+      <p><strong>FPS:</strong> <span id="fps">0</span></p>
+      <p><strong>Valmius liikennevaloille:</strong> Rakenteet valmiina, ohjaus toteutettavissa.</p>
+      <details>
+        <summary>Ohjeet</summary>
+        <ul>
+          <li>Lisää risteykset ja yhdistä ne teiksi.</li>
+          <li>Paina ▶ käynnistääksesi simulaation.</li>
+          <li>"Luo 500 autoa" generoi satunnaiset lähtö- ja määränpäät pathfindingin avulla.</li>
+          <li>Parametrit vaikuttavat kaikkiin uusiin ja olemassa oleviin ajoneuvoihin.</li>
+        </ul>
+      </details>
+    </aside>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
