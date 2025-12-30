@@ -1,0 +1,12 @@
+{
+  "name": "trafsim",
+  "version": "0.1.0",
+  "description": "Browser-based traffic simulator with road editor and pathfinding",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
