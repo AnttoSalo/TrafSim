@@ -9,7 +9,6 @@ const state = {
     roads: [],
   },
   vehicles: [],
-  intersectionReservations: {},
   params: {
     reaction: 0.6,
     accel: 2.5,
@@ -99,30 +98,25 @@ function resetSimulation() {
 function loadSampleMap() {
   state.graph.intersections = [];
   state.graph.roads = [];
-  state.intersectionReservations = {};
-
-  // Four-way intersection with three active approaches (north, west, south)
-  const layout = {
-    center: { x: 480, y: 360 },
-    north: { x: 480, y: 120 },
-    south: { x: 480, y: 620 },
-    west: { x: 180, y: 360 },
-    east: { x: 780, y: 360 },
-  };
-
-  const nodes = Object.fromEntries(Object.entries(layout).map(([key, point]) => [key, createIntersection(point)]));
-  state.graph.intersections.push(...Object.values(nodes));
-
-  const connect = (fromKey, toKey) => {
-    addRoadBetween(nodes[fromKey], nodes[toKey]);
-  };
-
-  ['north', 'south', 'west', 'east'].forEach((arm) => connect(arm, 'center'));
-  ['center', 'north', 'south', 'west', 'east'].forEach((arm) => {
-    if (arm !== 'center') connect('center', arm);
-  });
-
-  state.spawnOrigins = ['north', 'west', 'south'].map((key) => nodes[key].id);
+  const positions = [
+    { x: 200, y: 200 },
+    { x: 500, y: 200 },
+    { x: 800, y: 200 },
+    { x: 200, y: 450 },
+    { x: 500, y: 450 },
+    { x: 800, y: 450 },
+    { x: 200, y: 650 },
+    { x: 500, y: 650 },
+    { x: 800, y: 650 },
+  ];
+  positions.forEach((p) => addIntersection(p));
+  const byIndex = (idx) => state.graph.intersections[idx];
+  const connect = (a, b) => addRoadBetween(byIndex(a), byIndex(b));
+  [
+    [0, 1], [1, 2], [3, 4], [4, 5], [6, 7], [7, 8],
+    [0, 3], [3, 6], [1, 4], [4, 7], [2, 5], [5, 8],
+    [1, 3], [2, 4], [4, 6], [5, 7],
+  ].forEach(([a, b]) => connect(a, b));
   resetSimulation();
 }
 
@@ -130,9 +124,7 @@ function spawnVehicles(count) {
   const { intersections } = state.graph;
   if (intersections.length < 2) return;
   for (let i = 0; i < count; i += 1) {
-    const origins = state.spawnOrigins?.map((id) => intersections.find((n) => n.id === id)).filter(Boolean);
-    const startPool = origins?.length ? origins : intersections;
-    const start = startPool[Math.floor(Math.random() * startPool.length)];
+    const start = intersections[Math.floor(Math.random() * intersections.length)];
     let end = intersections[Math.floor(Math.random() * intersections.length)];
     let guard = 0;
     while (end.id === start.id && guard < 10) {
@@ -209,7 +201,6 @@ function createVehicle(path) {
     accel: state.params.accel,
     decel: state.params.decel,
     reactionTimer: 0,
-    reservedIntersection: null,
   };
 }
 
@@ -234,69 +225,29 @@ function roadForSegment(fromId, toId) {
   return state.graph.roads.find((r) => r.from === fromId && r.to === toId);
 }
 
-function approachDirection(fromId, toId) {
-  const from = state.graph.intersections.find((n) => n.id === fromId);
-  const to = state.graph.intersections.find((n) => n.id === toId);
-  if (!from || !to) return { x: 0, y: 0, angle: 0 };
-  const len = distance(from, to) || 1;
-  const dir = { x: (to.x - from.x) / len, y: (to.y - from.y) / len };
-  return { ...dir, angle: Math.atan2(dir.y, dir.x) };
-}
-
-function normalizeAngle(angle) {
-  return ((angle + Math.PI) % (Math.PI * 2)) - Math.PI;
-}
-
-function hasRightSideConflict(vehicle, distanceToIntersection) {
+function intersectionHasConflict(vehicle, distanceToIntersection) {
+  // simple right-hand rule with reservation for vehicles already in the box
+  const boxRadius = 18;
   const intersectionId = vehicle.path[vehicle.segmentIndex + 1];
-  const to = state.graph.intersections.find((n) => n.id === intersectionId);
-  const from = state.graph.intersections.find((n) => n.id === vehicle.path[vehicle.segmentIndex]);
-  if (!to || !from) return false;
+  const intersection = state.graph.intersections.find((n) => n.id === intersectionId);
+  if (!intersection) return false;
 
-  const ownApproach = approachDirection(from.id, to.id);
-  const arriving = state.vehicles.filter((other) => other.id !== vehicle.id && other.segmentIndex < other.path.length - 1);
-  for (const other of arriving) {
-    const otherToId = other.path[other.segmentIndex + 1];
-    if (otherToId !== intersectionId) continue;
-    const otherFromId = other.path[other.segmentIndex];
-    const otherApproach = approachDirection(otherFromId, otherToId);
-
-    const rel = normalizeAngle(otherApproach.angle - ownApproach.angle);
-    const otherIsOnRight = rel < -0.05; // clockwise direction
-
-    const otherDistance = distance(other.position, to);
-    const timeGap = (distanceToIntersection / Math.max(vehicle.speed, 1)) - (otherDistance / Math.max(other.speed, 1));
-
-    if (otherIsOnRight && timeGap > -1.2) {
+  const approaching = state.vehicles.filter((other) => other.id !== vehicle.id && other.segmentIndex < other.path.length - 1);
+  for (const other of approaching) {
+    const nextIntersection = other.path[other.segmentIndex + 1];
+    if (nextIntersection !== intersectionId) continue;
+    const otherNode = state.graph.intersections.find((n) => n.id === other.path[other.segmentIndex]);
+    const otherIntersection = state.graph.intersections.find((n) => n.id === nextIntersection);
+    const otherHeading = angleBetween(other.position, otherIntersection);
+    const relAngle = ((otherHeading - vehicle.heading + Math.PI * 2) % (Math.PI * 2));
+    const isOnRight = relAngle > 0 && relAngle < Math.PI;
+    const separation = distance(other.position, intersection);
+    if (separation < boxRadius) return true; // vehicle already inside the box
+    if (isOnRight && separation < distanceToIntersection + 10) {
       return true;
     }
   }
   return false;
-}
-
-function leaderOnSegment(vehicle, dir, to) {
-  const ahead = state.vehicles.filter((other) => {
-    if (other.id === vehicle.id) return false;
-    if (other.segmentIndex !== vehicle.segmentIndex) return false;
-    const otherTo = state.graph.intersections.find((n) => n.id === other.path[other.segmentIndex + 1]);
-    return otherTo?.id === to.id;
-  });
-
-  let closest = null;
-  ahead.forEach((other) => {
-    const delta = {
-      x: other.position.x - vehicle.position.x,
-      y: other.position.y - vehicle.position.y,
-    };
-    const projection = delta.x * dir.x + delta.y * dir.y;
-    if (projection > 0) {
-      const lateral = Math.abs(delta.x * dir.y - delta.y * dir.x);
-      if (lateral < 4 && (!closest || projection < closest.projection)) {
-        closest = { vehicle: other, projection };
-      }
-    }
-  });
-  return closest;
 }
 
 function updateVehicle(vehicle, dt) {
@@ -311,17 +262,9 @@ function updateVehicle(vehicle, dt) {
   const desiredHeading = Math.atan2(dir.y, dir.x);
   vehicle.heading = lerpAngle(vehicle.heading, desiredHeading, 0.15);
 
-  const brakingDistance = (vehicle.speed ** 2) / (2 * vehicle.decel) + 6;
-  const approachingIntersection = to.connected.length > 1;
-  const mustYield = approachingIntersection && (hasRightSideConflict(vehicle, remaining) || (state.intersectionReservations[to.id] && state.intersectionReservations[to.id] !== vehicle.id));
-  const leader = leaderOnSegment(vehicle, dir, to);
-  const tooCloseToLeader = leader && leader.projection < Math.max(6, vehicle.speed * vehicle.reactionTime + 4);
-  const needToStop = remaining < brakingDistance || mustYield || tooCloseToLeader;
-
-  if (approachingIntersection && !needToStop && !state.intersectionReservations[to.id] && remaining < 10 && vehicle.speed > 1) {
-    state.intersectionReservations[to.id] = vehicle.id;
-    vehicle.reservedIntersection = to.id;
-  }
+  const brakingDistance = (vehicle.speed ** 2) / (2 * vehicle.decel) + 4;
+  const mustYield = intersectionHasConflict(vehicle, remaining);
+  const needToStop = remaining < brakingDistance || mustYield;
 
   if (needToStop) {
     vehicle.reactionTimer += dt;
@@ -344,19 +287,6 @@ function updateVehicle(vehicle, dt) {
     if (vehicle.segmentIndex < vehicle.path.length - 1) {
       const next = state.graph.intersections.find((n) => n.id === vehicle.path[vehicle.segmentIndex + 1]);
       vehicle.heading = angleBetween(vehicle.position, next);
-    }
-  }
-
-  if (vehicle.reservedIntersection) {
-    const reservedNode = state.graph.intersections.find((n) => n.id === vehicle.reservedIntersection);
-    if (reservedNode) {
-      const clearance = distance(vehicle.position, reservedNode);
-      if (clearance > 14) {
-        if (state.intersectionReservations[reservedNode.id] === vehicle.id) {
-          state.intersectionReservations[reservedNode.id] = null;
-        }
-        vehicle.reservedIntersection = null;
-      }
     }
   }
 }
@@ -480,8 +410,6 @@ ui.spawnCars.addEventListener('click', () => spawnVehicles(500));
 ui.resetMap.addEventListener('click', () => {
   state.graph.intersections = [];
   state.graph.roads = [];
-  state.intersectionReservations = {};
-  state.spawnOrigins = undefined;
   resetSimulation();
 });
 ui.sampleMap.addEventListener('click', () => loadSampleMap());

@@ -9,7 +9,7 @@ npm install   # mikäli verkko sallii
 npm start
 ```
 
-Avaa selain osoitteessa http://localhost:3000. Editorissa lisää risteyksiä, yhdistä teiksi ja generoi jopa 500 ajoneuvoa. Parametriliukusäätimet vaikuttavat kaikkiin ajoneuvoihin lennossa. Oletusnäkymässä on yksi nelihaararisteys, jota lähestytään kolmelta suunnalta; ajoneuvoilla on satunnaiset määränpäät ja ne väistävät oikealta tulevaa liikennettä eivätkä aja toistensa läpi risteystä ylittäessään.
+Avaa selain osoitteessa http://localhost:3000. Editorissa lisää risteyksiä, yhdistä teiksi ja generoi jopa 500 ajoneuvoa. Parametriliukusäätimet vaikuttavat kaikkiin ajoneuvoihin lennossa.
 
 ## Ominaisuudet
 - Kaksisuuntainen tieverkko yhdellä kaistalla per suunta
